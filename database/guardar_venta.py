@@ -49,6 +49,7 @@ def guardar_venta_folio(item, folio):
             ingredientes,
             item["precio"]
         ))
-
+    
+    return folio, fecha_dia, item,
     conexion.commit()
     conexion.close()

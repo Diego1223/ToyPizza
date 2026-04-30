@@ -104,3 +104,6 @@ Bañados buffalo
 bañados BBQ
 Boneless salsa aparte buffalo
 
+
+
+# Alert dialog cuando presionemos cobrar con un DropDown para elegir el tipo de pago

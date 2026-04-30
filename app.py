@@ -236,9 +236,13 @@ def main(page: ft.Page):
     )
     def cobrar(e):
         folio = obtener_folio_diario()
+        print(f"Numero de pedido {folio}")
+        resultado = None
+
 
         for pizza in orden:
-            guardar_venta_folio(pizza, folio)
+            resultado = guardar_venta_folio(pizza, folio)
+
         orden.clear()
         actualizar_lista()
 
@@ -311,7 +315,7 @@ def main(page: ft.Page):
             ], alignment="spaceBetween"),
         ], spacing=10),
 
-        width=700,
+        width=400,
         padding=15,
         bgcolor="#f9f9f9",
         border_radius=10
@@ -340,6 +344,7 @@ def main(page: ft.Page):
                 ft.Button("Cobrar", on_click=cobrar, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLACK),
                 ft.PopupMenuButton(
                     icon=ft.Icons.PRINT,
+                    icon_color=ft.Colors.BLACK,
                     items=[
                         ft.PopupMenuItem(content="Ticket Cliente"),
                         ft.PopupMenuItem(content="Ticket Cocina")
