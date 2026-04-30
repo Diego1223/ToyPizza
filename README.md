@@ -90,3 +90,17 @@ precios_tipos_pizza
 | 2       | Jumbo  | 40     |
 | 3       | Grande | 25     |
 | 3       | Jumbo  | 35     |
+
+
+# Complementos
+Abre ventana modal dentro hay una lista de productos con botones + / - se agregan a la orden y se ven igual que las pizzas
+
+- spaguetti es de medio litro 1/2
+
+
+
+# Boneless 
+Bañados buffalo
+bañados BBQ
+Boneless salsa aparte buffalo
+

@@ -7,6 +7,8 @@ from database.ingredientes import obtener_ingredientes
 from database.calcular_precios import calcular_precio
 from database.obtener_tipos_pizza import obtener_tipos_pizza
 from database.obtener_tamanos import obtener_tamanos
+from components.complementos import crear_dialogo_complementos
+from utils.autocomplete import crear_autocomplete
 
 ssl._create_default_https_context = lambda: ssl.create_default_context(
     cafile=certifi.where()
@@ -37,71 +39,10 @@ def main(page: ft.Page):
     lado1_ui = ft.Column()
     lado2_ui = ft.Column()
 
-    lista_pedidos = ft.Column(scroll="auto")
+    lista_pedidos = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
     total_text = ft.Text("Total: $0")
 
-    
-    # -----------------------
-    # AUTOCOMPLETE
-    # -----------------------
-    def actualizar_tipo(e=None):
-        if tipo.value == "completa":
-            mitad2_container.visible = False
 
-            lado2.clear()
-            actualizar_ui_lado2()
-        else:
-            mitad2_container.visible = True
-        page.update()
-    def crear_autocomplete(lado):
-        input_field = ft.TextField(label="Agregar ingrediente", label_style=ft.TextStyle(color="black"))
-
-        sugerencias = ft.Column()
-        container = ft.Container(
-            sugerencias,
-            visible=False,
-            bgcolor="#eee",
-            padding=5
-        )
-
-        def filtrar(e):
-            texto = input_field.value.lower()
-            sugerencias.controls.clear()
-
-            if texto == "":
-                container.visible = False
-                page.update()
-                return
-
-            resultados = [i for i in ingredientes if texto in i.lower()]
-
-            container.visible = bool(resultados)
-
-            for r in resultados:
-                sugerencias.controls.append(
-                    ft.ListTile(
-                        title=ft.Text(r),
-                        on_click=lambda e, val=r: seleccionar(val)
-                    )
-                )
-
-            page.update()
-
-        def seleccionar(valor):
-            if lado == 1:
-                lado1.append(valor)
-                actualizar_ui_lado1()
-            else:
-                lado2.append(valor)
-                actualizar_ui_lado2()
-
-            input_field.value = ""
-            container.visible = False
-            page.update()
-
-        input_field.on_change = filtrar
-
-        return ft.Column([input_field, container])
 
     # -----------------------
     # UI LADOS
@@ -151,16 +92,9 @@ def main(page: ft.Page):
         color=ft.Colors.BLACK
     )
 
-    tipo = ft.RadioGroup(
-        content=ft.Row([
-            ft.Radio(value="completa", label="Completa",  label_style=ft.TextStyle(color="black"), fill_color="black"),
-            ft.Radio(value="mitad", label="Mitades",  label_style=ft.TextStyle(color="black"), fill_color="black")
-        ])
-    )
-    tipo.on_change = actualizar_tipo
 
-    auto1 = crear_autocomplete(1)
-    auto2 = crear_autocomplete(2)
+    auto1 = crear_autocomplete(page,1, ingredientes, lado1, lado2, actualizar_ui_lado1, actualizar_ui_lado2)
+    auto2 = crear_autocomplete(page,2, ingredientes, lado1, lado2, actualizar_ui_lado1, actualizar_ui_lado2)
 
     # -----------------------
     # FUNCIONES
@@ -213,53 +147,66 @@ def main(page: ft.Page):
     def actualizar_lista():
         lista_pedidos.controls.clear()
         total = 0
-
         for i, p in enumerate(orden):
 
             def eliminar(e, index=i):
                 orden.pop(index)
                 actualizar_lista()
 
-            def editar(e, index=i):
-                boton_agregar.content = "Guardar cambios"
-                boton_agregar.update()
-                nonlocal editando_index
+            def editar(e, index=i): 
+                item = orden[index] 
 
-                pizza = orden[index]
-
-                tamano.value = pizza["tamano"]
-                tipo.value = pizza["tipo"]
-                actualizar_tipo()
-
-                lado1.clear()
-                lado2.clear()
-
-                if pizza["tipo"] == "mitad":
-                    lado1.extend(pizza["lado1"])
-                    lado2.extend(pizza["lado2"])
+                if p.get("tipo_item") == "complemento":
+                    cargar_complementos(item, index)
+                    abrir_complementos(e)
                 else:
-                    lado1.extend(pizza["ingredientes"])
+                    boton_agregar.content = "Guardar cambios"
+                    boton_agregar.update()
+                    nonlocal editando_index
+
+                    pizza = orden[index]
+
+                    tamano.value = pizza["tamano"]
+                    tipo.value = pizza["tipo"]
+                    actualizar_tipo()
+
+                    lado1.clear()
+                    lado2.clear()
+
+                    if pizza["tipo"] == "mitad":
+                        lado1.extend(pizza["lado1"])
+                        lado2.extend(pizza["lado2"])
+                    else:
+                        lado1.extend(pizza["ingredientes"])
 
                 actualizar_ui_lado1()
                 actualizar_ui_lado2()
 
                 editando_index = index
                 page.update()
-            # descripción bonita
-            if p["tipo"] == "mitad":
-                desc = f"{', '.join(p['lado1'])}  |  {', '.join(p['lado2'])}"
+            
+            
+            if p.get("tipo_item") == "complemento":
+                titulo = f"Complemento #{i+1}"
+                desc = f"{p['nombre']} x {p['cantidad']}"
+
             else:
-                desc = ", ".join(p["ingredientes"])
+                titulo = f"Pizza #{i + 1}"
+                if p.get("tipo") == "mitad":
+  
+                  desc = f"{', '.join(p['lado1'])}  |  {', '.join(p['lado2'])}"
+                else:
+                    desc = ", ".join(p["ingredientes"])
 
             card = ft.Container(
                 content=ft.Column([
                     ft.Row([
-                        ft.Text(f"Pizza #{i+1}", weight="bold"),
+                        ft.Text(titulo, weight="bold"),
                         ft.Text(f"${p['precio']}", weight="bold")
                     ], alignment="spaceBetween"),
 
-                    ft.Text(p["tamano"], size=12, color="gray"),
-                    ft.Text(p["tipo_base"], size=12, color="gray"),
+                    ft.Text(p.get("tamano"), size=12, color="gray"),
+                    ft.Text(p.get("tipo_base"), size=12, color="gray"),
                     ft.Text(desc),
 
                     ft.Row([
@@ -282,7 +229,11 @@ def main(page: ft.Page):
         total_text.value = f"Total: ${total}"
         page.update()
 
-    
+    dialog, abrir_complementos, cargar_complementos = crear_dialogo_complementos(
+        page,
+        orden,
+        actualizar_lista
+    )
     def cobrar(e):
         folio = obtener_folio_diario()
 
@@ -295,12 +246,49 @@ def main(page: ft.Page):
     # UI
     # -----------------------
 
-    mitad2_container = ft.Column(controls=[
-        ft.Text("Mitad 2"),
-        auto2,
-        lado2_ui
-    ])
+    def actualizar_tipo(e=None):
+        if tipo.value == "completa":
+            mitad2_container.visible = False
+
+            lado2.clear()
+            actualizar_ui_lado2()
+        else:
+            mitad2_container.visible = True
+
+        page.update()
+
+
+    tipo = ft.RadioGroup(
+        content=ft.Row([
+            ft.Radio(
+                value="completa",
+                label="Completa",
+                label_style=ft.TextStyle(color="black"),
+                fill_color="black"
+            ),
+            ft.Radio(
+                value="mitad",
+                label="Mitades",
+                label_style=ft.TextStyle(color="black"),
+                fill_color="black"
+            )
+        ])
+    )
+
+
+    mitad2_container = ft.Column(
+        controls=[
+            ft.Text("Mitad 2"),
+            auto2,
+            lado2_ui
+        ]
+    )
+
+
+    tipo.on_change = actualizar_tipo
+
     boton_agregar = ft.ElevatedButton("Agregar", on_click=agregar_pizza, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLACK)
+
     panel_izq = ft.Container(
         content=ft.Column([
             ft.Text("Armar Pizza", size=18, weight="bold", color=ft.Colors.BLACK),
@@ -316,8 +304,11 @@ def main(page: ft.Page):
             lado1_ui,     # 👈 LISTA VISUAL
 
             mitad2_container,
+            ft.Row(controls=[
+                boton_agregar,
+                ft.ElevatedButton("Complementos",on_click=abrir_complementos, bgcolor=ft.Colors.BLACK, color=ft.Colors.WHITE)
 
-            boton_agregar
+            ], alignment="spaceBetween"),
         ], spacing=10),
 
         width=700,
@@ -331,7 +322,10 @@ def main(page: ft.Page):
         content=ft.Column([
             ft.Text("Pedido", size=18, weight="bold"),
             ft.Divider(),
-            lista_pedidos
+            ft.Container(
+                content=lista_pedidos,
+                expand=True
+            ),
         ], alignment=ft.MainAxisAlignment.START, expand=True
         ),
 
