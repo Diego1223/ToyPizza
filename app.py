@@ -9,6 +9,9 @@ from database.obtener_tipos_pizza import obtener_tipos_pizza
 from database.obtener_tamanos import obtener_tamanos
 from components.complementos import crear_dialogo_complementos
 from utils.autocomplete import crear_autocomplete
+#from components.tickets import generar_ticket
+from datetime import datetime
+import sqlite3
 
 ssl._create_default_https_context = lambda: ssl.create_default_context(
     cafile=certifi.where()
@@ -23,7 +26,9 @@ def main(page: ft.Page):
 
     tipo_base = ft.Dropdown(
         label="Tipo de pizza",
-        options=[ft.dropdown.Option(t) for t in tipos]
+        label_style=ft.TextStyle(color="black"),
+        options=[ft.dropdown.Option(t) for t in tipos],
+        color=ft.Colors.BLACK
     )
 
 
@@ -88,6 +93,7 @@ def main(page: ft.Page):
     tamanos_pizza = obtener_tamanos()
     tamano = ft.Dropdown(
         label="Tamaño",
+        label_style=ft.TextStyle(color="black"),
         options= [ft.dropdown.Option(t) for t in tamanos_pizza],
         color=ft.Colors.BLACK
     )
@@ -234,17 +240,171 @@ def main(page: ft.Page):
         orden,
         actualizar_lista
     )
+
+    def obtener_total():
+        return sum(item["precio"] for item in orden)
+    
+    def calcular_cambio(e):
+        total = obtener_total()
+        efectivo = 0
+        transferencia = 0
+
+        try:
+            if monto_efectivo.value:
+                efectivo = float(monto_efectivo.value.strip()) if monto_efectivo.value else 0
+            if monto_transferencia.value:
+                transferencia = float(monto_transferencia.value.strip()) if monto_transferencia.value else 0
+            
+            recibido = efectivo + transferencia
+
+            if recibido < total:
+                texto_cambio.value = "Pago insuficiente"
+                page.update
+                return
+            
+            cambio = recibido - total
+
+            if cambio < 0:
+                cambio = 0
+            texto_cambio.value = f"Cambio: ${cambio}"
+        except ValueError:
+            texto_cambio.value = "Monto invalido"
+
+        page.update()
+    
+
+    monto_efectivo = ft.TextField(
+        label="Monto efectivo",
+        visible=False,
+        width=300
+    )
+    monto_transferencia = ft.TextField(
+        label="Monto transferencia",
+        visible=False,
+        width=300
+    )
+
+    texto_cambio = ft.Text(
+        "Cambio: $0",
+        size=16,
+        weight="bold"
+    )
+
+    monto_efectivo.on_change = calcular_cambio
+    monto_transferencia.on_change = calcular_cambio
+
+    dropdown_cobro = ft.DropdownM2(
+        width=200,
+        options=[
+            ft.dropdownm2.Option("Efectivo"),
+            ft.dropdownm2.Option("Transferencia"),
+            ft.dropdownm2.Option("Mixto")
+        ]
+    )
+    def cambiar_metodo_pago(e):
+        metodo = dropdown_cobro.value
+
+        #ocultar todo al principio
+        monto_efectivo.visible = False
+        monto_transferencia.visible = False
+
+        #Limpiar valores
+        monto_efectivo.value = ""
+        monto_transferencia.value = ""
+
+        texto_cambio.value = "Cambio: $0"
+
+        if metodo == "Efectivo":
+            monto_efectivo.visible = True
+        elif metodo == "Transferencia":
+            monto_transferencia.visible = True
+        elif metodo == "Mixto":
+            monto_efectivo.visible = True
+            monto_transferencia.visible = True
+        
+        page.update()
+
+    #Conectar el dropDown
+    dropdown_cobro.on_change = cambiar_metodo_pago
+
+    alert_cobro = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Metodo de pago"),
+        content=ft.Column([
+            ft.Row(
+                [dropdown_cobro], 
+                alignment=ft.MainAxisAlignment.CENTER
+            ),
+            monto_efectivo,
+            monto_transferencia,
+            texto_cambio
+        ], width=400, height=400),
+        actions=[
+            ft.TextButton("Cancelar", on_click=lambda e: page.pop_dialog()),
+            ft.TextButton("Confirmar", on_click=lambda e: page.pop_dialog())
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+        
     def cobrar(e):
-        folio = obtener_folio_diario()
-        print(f"Numero de pedido {folio}")
-        resultado = None
+        ahora = datetime.now()
+        fecha_dia = ahora.strftime("%Y-%m-%d") 
+        conexion = sqlite3.connect("ventas.db")
+        cursor = conexion.cursor()
+
+        metodo_de_pago = dropdown_cobro.value
+        efectivo = 0
+        transferencia = 0
+
+        total = sum(item["precio"] for item in orden)
+
+        try:
+            if monto_efectivo.value:
+                efectivo = float(monto_efectivo.value)
+            if monto_transferencia.value:
+                transferencia = float(monto_transferencia.value)
+            recibido  = efectivo + transferencia
+
+            if recibido < total:
+                texto_cambio.value = "Pago insuficiente"
+                page.update()
+                return
+
+            cambio = recibido - total
 
 
-        for pizza in orden:
-            resultado = guardar_venta_folio(pizza, folio)
+            folio = obtener_folio_diario()
+            for item in orden:
+                #agregar ,cursor aqui en guardar_venta_folio
+                guardar_venta_folio(
+                    item=item, 
+                    folio=folio,
+                    metodo_de_pago=metodo_de_pago,
+                    monto_efectivo=efectivo,
+                    monto_transferencia=transferencia,
+                    cambio=cambio
+                )
+            texto_cambio.value = f"Pago confirmado | Cambio: ${cambio}"
 
-        orden.clear()
-        actualizar_lista()
+            #Limpiar orden
+            orden.clear()
+            actualizar_lista()
+
+            dialog.open = False
+
+            monto_efectivo.value = ""
+            monto_transferencia.value = ""
+            texto_cambio.value = "Cambio: $0"
+            dropdown_cobro.value = "Efectivo"
+
+            conexion.commit()
+            conexion.close()
+
+            page.update()
+        except ValueError:
+            texto_cambio.value = "Monto invalido"
+            page.update()
 
     # -----------------------
     # UI
@@ -312,14 +472,13 @@ def main(page: ft.Page):
                 boton_agregar,
                 ft.ElevatedButton("Complementos",on_click=abrir_complementos, bgcolor=ft.Colors.BLACK, color=ft.Colors.WHITE)
 
-            ], alignment="spaceBetween"),
-        ], spacing=10),
+            ], alignment="spaceBetween", spacing=10),
+        ], scroll=ft.ScrollMode.AUTO,),
 
         width=400,
         padding=15,
         bgcolor="#f9f9f9",
-        border_radius=10
-    
+        border_radius=10,
     )
 
     panel_der = ft.Container(
@@ -333,7 +492,7 @@ def main(page: ft.Page):
         ], alignment=ft.MainAxisAlignment.START, expand=True
         ),
 
-        expand=True,
+        expand=2,
         padding=15,
     ) 
 
@@ -341,10 +500,9 @@ def main(page: ft.Page):
         content=ft.Row([
             total_text,
             ft.Row([
-                ft.Button("Cobrar", on_click=cobrar, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLACK),
+                ft.Button("Cobrar", on_click=lambda e: page.show_dialog(alert_cobro), color=ft.Colors.WHITE, bgcolor=ft.Colors.BLACK),
                 ft.PopupMenuButton(
                     icon=ft.Icons.PRINT,
-                    icon_color=ft.Colors.BLACK,
                     items=[
                         ft.PopupMenuItem(content="Ticket Cliente"),
                         ft.PopupMenuItem(content="Ticket Cocina")
@@ -368,7 +526,7 @@ def main(page: ft.Page):
                     panel_izq,
                     ft.VerticalDivider(width=1),
                     panel_der
-                ], expand=True),
+                ], expand=True, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.START),
 
                 footer
             ]),

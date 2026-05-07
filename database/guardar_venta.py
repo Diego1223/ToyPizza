@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 #El folio sigue siendo el mismo cuando es complemento porque PERTENECE A LA MISMA VENTA
-def guardar_venta_folio(item, folio):
+def guardar_venta_folio(item, folio, metodo_pago, monto_efectivo, monto_transferencia, cambio):
     conexion = sqlite3.connect("ventas.db")
     cursor = conexion.cursor()
 
@@ -19,16 +19,24 @@ def guardar_venta_folio(item, folio):
                 fecha_dia,
                 nombre,
                 cantidad,
-                precio
+                precio,
+                metodo_pago,
+                monto_efectivo,
+                monto_transferencia,
+                cambio
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             folio,
             fecha,
             fecha_dia,
             item["nombre"],
             item["cantidad"],
-            item["precio"]
+            item["precio"],
+            metodo_pago,
+            monto_efectivo,
+            monto_transferencia,
+            cambio
         ))
     else:
 
@@ -38,8 +46,8 @@ def guardar_venta_folio(item, folio):
             ingredientes = ",".join(item["ingredientes"])
 
         cursor.execute("""
-            INSERT INTO ventas (folio, fecha, fecha_dia, tamano, tipo, ingredientes, precio)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO ventas (folio, fecha, fecha_dia, tamano, tipo, ingredientes, precio, metodo_pago, monto_efectivo, monto_transferencia, cambio)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             folio,
             fecha,
@@ -47,9 +55,13 @@ def guardar_venta_folio(item, folio):
             item["tamano"],
             item["tipo"],
             ingredientes,
-            item["precio"]
+            item["precio"],
+            metodo_pago,
+            monto_efectivo,
+            monto_transferencia,
+            cambio
         ))
     
-    return folio, fecha_dia, item,
     conexion.commit()
     conexion.close()
+    return folio, fecha_dia, item,
