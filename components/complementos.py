@@ -11,7 +11,8 @@ def crear_dialogo_complementos(page,orden, actualizar_lista):
     def cerrar_modal():
         dialog.open = False
         page.update()
-
+ 
+    
     def confirmar_complementos():
         items_nuevos = []
 

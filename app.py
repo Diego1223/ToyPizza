@@ -12,6 +12,8 @@ from utils.autocomplete import crear_autocomplete
 #from components.tickets import generar_ticket
 from datetime import datetime
 import sqlite3
+from components.boneless import crear_dialogo_boneless
+
 
 ssl._create_default_https_context = lambda: ssl.create_default_context(
     cafile=certifi.where()
@@ -161,8 +163,14 @@ def main(page: ft.Page):
 
             def editar(e, index=i): 
                 item = orden[index] 
+                #####
+                #AGREGAR ESTO
+                #$####
+                if p.get("tipo_item") == "boneless":
+                    cargar_boneless(item, index)
+                    abrir_boneless(e)
 
-                if p.get("tipo_item") == "complemento":
+                elif p.get("tipo_item") == "complemento":
                     cargar_complementos(item, index)
                     abrir_complementos(e)
                 else:
@@ -190,17 +198,35 @@ def main(page: ft.Page):
 
                 editando_index = index
                 page.update()
-            
-            
-            if p.get("tipo_item") == "complemento":
+            ### 
+            ## ACTUALIZAR ESTO
+            ####
+            if p.get("tipo_item") == "boneless":
+                titulo = f"Boneless #{i+1}"
+
+                salsas = p.get("salsas", {})
+
+                if isinstance(salsas, dict):
+                    texto_salsas = ", ".join(
+                        [f"{nombre} x{cantidad}" for nombre, cantidad in salsas.items() if cantidad > 0]
+                    )
+                else:
+                    texto_salsas = "Sin salsas"
+
+                desc = (
+                    f"{p['nombre']} x {p['cantidad']}\n"
+                    f"Salsas: {texto_salsas}"
+                )
+
+            elif p.get("tipo_item") == "complemento":
                 titulo = f"Complemento #{i+1}"
                 desc = f"{p['nombre']} x {p['cantidad']}"
 
             else:
-                titulo = f"Pizza #{i + 1}"
+                titulo = f"Pizza #{i+1}"
+
                 if p.get("tipo") == "mitad":
-  
-                  desc = f"{', '.join(p['lado1'])}  |  {', '.join(p['lado2'])}"
+                    desc = f"{', '.join(p['lado1'])} | {', '.join(p['lado2'])}"
                 else:
                     desc = ", ".join(p["ingredientes"])
 
@@ -240,6 +266,17 @@ def main(page: ft.Page):
         orden,
         actualizar_lista
     )
+    
+
+    ####
+    ## AGREGAR ESTO
+    ####
+    dialog_boneless, abrir_boneless, cargar_boneless = crear_dialogo_boneless(
+        page,
+        orden,
+        actualizar_lista
+    )
+
 
     def obtener_total():
         return sum(item["precio"] for item in orden)
@@ -468,10 +505,13 @@ def main(page: ft.Page):
             lado1_ui,     # 👈 LISTA VISUAL
 
             mitad2_container,
+            ##
+                ## AGREGAR EL BOTON boneless
+            ###
             ft.Row(controls=[
                 boton_agregar,
-                ft.ElevatedButton("Complementos",on_click=abrir_complementos, bgcolor=ft.Colors.BLACK, color=ft.Colors.WHITE)
-
+                ft.ElevatedButton("Complementos",on_click=abrir_complementos, bgcolor=ft.Colors.BLACK, color=ft.Colors.WHITE),
+                ft.ElevatedButton("Boneless", on_click=abrir_boneless, bgcolor=ft.Colors.BLACK, color=ft.Colors.WHITE)
             ], alignment="spaceBetween", spacing=10),
         ], scroll=ft.ScrollMode.AUTO,),
 
